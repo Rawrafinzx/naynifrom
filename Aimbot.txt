@@ -1,0 +1,67 @@
+local localPlayer = game.Players.LocalPlayer
+local target = nil
+local aimingEnabled = false
+local teamCheck = false
+local fov = 150
+local smoothing = 1
+local prediction = 0.139 -- The prediction amount in seconds
+
+local RunService = game:GetService("RunService")
+
+local function getClosest(cframe)
+    local ray = Ray.new(cframe.Position, cframe.LookVector).Unit
+
+    local closestTarget = nil
+    local closestMagnitude = math.huge
+
+    for _, player in ipairs(game.Players:GetPlayers()) do
+        if player ~= localPlayer and (not teamCheck or player.Team ~= localPlayer.Team) then
+            local character = player.Character
+            if character and character:FindFirstChild("HumanoidRootPart") and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
+                local magnitude = (character.HumanoidRootPart.Position - ray:ClosestPoint(character.HumanoidRootPart.Position)).Magnitude
+                if magnitude < closestMagnitude and magnitude <= fov then
+                    closestMagnitude = magnitude
+                    closestTarget = player
+                end
+            end
+        end
+    end
+
+    return closestTarget
+end
+
+local function toggleAimbot()
+    aimingEnabled = not aimingEnabled
+    if aimingEnabled then
+        target = getClosest(workspace.CurrentCamera.CFrame)
+    else
+        target = nil
+    end
+    print("Aimbot " .. (aimingEnabled and "enabled" or "disabled"))
+end
+
+local function predictPosition(targetCharacter)
+    local velocity = targetCharacter:FindFirstChildOfClass("Humanoid").RootPart.Velocity
+    return targetCharacter.HumanoidRootPart.Position + velocity * prediction
+end
+
+local function aimAtTarget()
+    if aimingEnabled and target then
+        local character = localPlayer.Character
+        local camera = workspace.CurrentCamera
+        local targetCharacter = target.Character
+        if character and targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
+            local predictedPosition = predictPosition(targetCharacter)
+            camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, predictedPosition), smoothing)
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(aimAtTarget)
+
+-- Bind the toggleAimbot function to the "Middle Mouse" key
+game:GetService("UserInputService").InputBegan:Connect(function(input, isProcessed)
+    if input.UserInputType == Enum.UserInputType.MouseButton3 and not isProcessed then
+        toggleAimbot()
+    end
+end)
